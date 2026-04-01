@@ -1,3 +1,13 @@
+---
+title: "Guide 9 – Maintenance et mise à jour de l'EFI"
+author: "Projet Kryptonite"
+date: "2026-04-01"
+lang: fr
+geometry: margin=2.5cm
+fontsize: 11pt
+toc: true
+---
+
 # Guide 9 – Maintenance et mise à jour de l'EFI
 
 > **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | macOS Sequoia
@@ -231,7 +241,7 @@ Une fois que votre système est stable, retirez `-v` des boot-args pour un déma
 2. Allez dans `NVRAM > Add > 7C436110-AB2A-4BBB-A880-FE41995C9F82 > boot-args`
 3. Retirez `-v` de la chaîne
 4. Vous pouvez aussi retirer `keepsyms=1` et `debug=0x100`
-5. Résultat : `alcid=1` (ou votre alcid)
+5. Résultat : `alcid=1 agdpmod=pikera` (conservez toujours `agdpmod=pikera` pour la RX 580)
 6. Sauvegardez et redémarrez
 
 ---

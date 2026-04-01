@@ -1,3 +1,13 @@
+---
+title: "Guide 8 – Post-installation et mappage USB"
+author: "Projet Kryptonite"
+date: "2026-04-01"
+lang: fr
+geometry: margin=2.5cm
+fontsize: 11pt
+toc: true
+---
+
 # Guide 8 – Post-installation et mappage USB
 
 > **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | macOS Sequoia

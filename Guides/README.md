@@ -1,3 +1,13 @@
+---
+title: "Guides d'installation – macOS Sequoia Tahoe sur ASUS Z97-C"
+author: "Projet Kryptonite"
+date: "2026-04-01"
+lang: fr
+geometry: margin=2.5cm
+fontsize: 11pt
+toc: true
+---
+
 # Guides d'installation – macOS Sequoia Tahoe sur ASUS Z97-C
 
 > **Configuration cible** : ASUS Z97-C | Intel i7-4790 (Haswell) | AMD RX 580 8 Go | macOS Sequoia Tahoe
@@ -57,6 +67,18 @@ Voir [Scripts/setup-efi.sh](Scripts/setup-efi.sh) pour plus de détails.
 - [ProperTree](https://github.com/corpnewt/ProperTree)
 - [GenSMBIOS](https://github.com/corpnewt/GenSMBIOS)
 - [Hackintool](https://github.com/benbaker76/Hackintool)
+
+## Conversion en PDF
+
+Chaque guide inclut un en-tête YAML compatible avec [pandoc](https://pandoc.org/) pour la conversion en PDF :
+
+```bash
+# Convertir un guide en PDF
+pandoc Guide-01-Telechargement-macOS.md -o Guide-01.pdf --pdf-engine=xelatex
+
+# Convertir tous les guides
+for f in Guide-*.md; do pandoc "$f" -o "${f%.md}.pdf" --pdf-engine=xelatex; done
+```
 
 ## Licence
 

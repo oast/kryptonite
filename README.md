@@ -5,3 +5,9 @@
 Kryptonite enables external GPUs on Macs using Thunderbolt 1 and 2 without compromising on Mac security features such as **System Integrity Protection**, **FileVault**, and **Authenticated-Root**.
 
 # [Click Here to Begin](https://github.com/mayankk2308/kryptonite/wiki).
+
+## Guides d'installation macOS Sequoia (Hackintosh)
+
+Une série de 9 guides pas-à-pas en français pour installer **macOS Sequoia Tahoe** via OpenCore sur un PC de bureau **ASUS Z97-C + Intel i7-4790 + AMD RX 580**.
+
+Consultez les [Guides d'installation](Guides/README.md) pour commencer.

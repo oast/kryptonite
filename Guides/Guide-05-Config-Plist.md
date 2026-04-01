@@ -1,3 +1,13 @@
+---
+title: "Guide 5 – Création et personnalisation du Config.plist"
+author: "Projet Kryptonite"
+date: "2026-04-01"
+lang: fr
+geometry: margin=2.5cm
+fontsize: 11pt
+toc: true
+---
+
 # Guide 5 – Création et personnalisation du Config.plist
 
 > **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | macOS Sequoia
@@ -169,7 +179,7 @@ Paramètres Kernel importants :
 | `Debug > Target` | `3` | Logs console + fichier (67 pour debug complet) |
 | `Security > AllowSetDefault` | `true` | Permet de définir le disque de boot par défaut |
 | `Security > ScanPolicy` | `0` | Scanne tous les disques |
-| `Security > SecureBootModel` | `Default` | Active le Secure Boot Apple |
+| `Security > SecureBootModel` | `Disabled` | Désactivé car Haswell n'est pas officiellement supporté |
 | `Security > Vault` | `Optional` | Pas de vault pour commencer |
 
 ### 3.6 – Section NVRAM
@@ -182,11 +192,12 @@ Paramètres Kernel importants :
         <key>7C436110-AB2A-4BBB-A880-FE41995C9F82</key>
         <dict>
             <key>boot-args</key>
-            <string>-v keepsyms=1 debug=0x100 alcid=1</string>
+            <string>-v keepsyms=1 debug=0x100 alcid=1 agdpmod=pikera</string>
             <!-- -v : mode verbose (affiche les logs au démarrage) -->
             <!-- keepsyms=1 : conserve les symboles en cas de panic -->
             <!-- debug=0x100 : empêche le redémarrage en cas de panic -->
             <!-- alcid=1 : layout-id pour AppleALC -->
+            <!-- agdpmod=pikera : INDISPENSABLE pour la RX 580 (évite l'écran noir) -->
 
             <key>prev-lang:kbd</key>
             <data>ZnItRlI=</data>

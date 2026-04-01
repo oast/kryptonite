@@ -185,6 +185,16 @@ download_github_release "acidanthera/AppleALC" "RELEASE" "${KEXTS_TMP}" "AppleAL
 download_github_release "acidanthera/IntelMausi" "RELEASE" "${KEXTS_TMP}" "IntelMausi"
 [ -d "${KEXTS_TMP}/IntelMausi.kext" ] && cp -R "${KEXTS_TMP}/IntelMausi.kext" "${EFI_DIR}/OC/Kexts/"
 
+# AQtion (réseau 10G Aquantia AQC107)
+download_github_release "Mieze/AQtion" "" "${KEXTS_TMP}" "AQtion"
+# Le kext peut être à la racine ou dans un sous-dossier
+for kext_file in "${KEXTS_TMP}"/*.kext "${KEXTS_TMP}"/**/*.kext; do
+    if [ -d "${kext_file}" ]; then
+        cp -R "${kext_file}" "${EFI_DIR}/OC/Kexts/"
+        break
+    fi
+done
+
 # Nettoyage des fichiers temporaires kexts
 rm -rf "${KEXTS_TMP}"
 
