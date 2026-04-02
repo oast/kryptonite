@@ -1,27 +1,29 @@
 #!/bin/bash
-
-# setup-efi.sh
-# Script d'automatisation pour créer l'arborescence EFI OpenCore
-# Configuration : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | macOS Sequoia
+# =============================================================================
+# setup-efi.sh — Construction automatique du dossier EFI OpenCore
+# Cible : ASUS Z97-C + i7-4790 + RX 580 + Kalea AQC113
+# Les kexts Fenvi T919 sont gérés séparément par setup-fenvi.sh
 #
-# Usage : chmod +x setup-efi.sh && ./setup-efi.sh
-
+# Utilisation : chmod +x setup-efi.sh && ./setup-efi.sh [répertoire_de_travail]
+# Par défaut : ./Hackintosh-EFI
+# =============================================================================
 set -euo pipefail
 
-# --- Configuration ---
-
-WORK_DIR="${1:-$(pwd)/Hackintosh-EFI}"
-EFI_DIR="${WORK_DIR}/EFI"
-
-# Couleurs pour l'affichage
+# ---------------------------------------------------------------------------
+# Couleurs et fonctions d'affichage
+# ---------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 BOLD='\033[1m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# --- Fonctions utilitaires ---
+print_info()    { echo -e "${BLUE}[INFO]${NC}    $*"; }
+print_success() { echo -e "${GREEN}[OK]${NC}      $*"; }
+print_warning() { echo -e "${YELLOW}[AVERT]${NC}  $*"; }
+print_error()   { echo -e "${RED}[ERREUR]${NC} $*" >&2; }
+print_step()    { echo -e "${BOLD}${BLUE}➜${NC} $*"; }
 
 print_header() {
     echo ""
@@ -31,34 +33,122 @@ print_header() {
     echo ""
 }
 
-print_step() {
-    echo -e "${GREEN}[+]${NC} $1"
+# ---------------------------------------------------------------------------
+# Aide
+# ---------------------------------------------------------------------------
+usage() {
+    echo -e "${BOLD}Utilisation :${NC} $0 [répertoire_de_travail]"
+    echo ""
+    echo "  Construit un dossier EFI OpenCore complet pour Hackintosh."
+    echo "  Par défaut le dossier de travail est ./Hackintosh-EFI"
+    echo ""
+    echo "  Matériel ciblé :"
+    echo "    - Carte mère : ASUS Z97-C"
+    echo "    - Processeur : Intel Core i7-4790 (Haswell)"
+    echo "    - GPU : AMD Radeon RX 580"
+    echo "    - Réseau 10G : Kalea Informatique AQC113"
+    echo ""
+    echo "  Options :"
+    echo "    -h, --help    Afficher cette aide"
+    exit 0
 }
 
-print_warn() {
-    echo -e "${YELLOW}[!]${NC} $1"
+# ---------------------------------------------------------------------------
+# Gestion des arguments
+# ---------------------------------------------------------------------------
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+fi
+
+WORK_DIR="${1:-./Hackintosh-EFI}"
+EFI_DIR="${WORK_DIR}/EFI"
+
+# ---------------------------------------------------------------------------
+# Détection du système hôte (macOS vs Linux)
+# ---------------------------------------------------------------------------
+detect_os() {
+    case "$(uname -s)" in
+        Darwin)
+            HOST_OS="macOS"
+            # Sur macOS, vérifier si gtar est disponible (GNU tar via Homebrew)
+            if command -v gtar &>/dev/null; then
+                TAR_CMD="gtar"
+            else
+                TAR_CMD="tar"
+            fi
+            ;;
+        Linux)
+            HOST_OS="Linux"
+            TAR_CMD="tar"
+            ;;
+        *)
+            print_error "Système non pris en charge : $(uname -s)"
+            exit 1
+            ;;
+    esac
+    print_info "Système détecté : ${HOST_OS}"
 }
 
-print_error() {
-    echo -e "${RED}[x]${NC} $1"
+# ---------------------------------------------------------------------------
+# Vérification des dépendances
+# ---------------------------------------------------------------------------
+check_deps() {
+    print_step "Vérification des dépendances..."
+    local missing=()
+    local deps=(curl unzip)
+
+    for cmd in "${deps[@]}"; do
+        if ! command -v "${cmd}" &>/dev/null; then
+            missing+=("${cmd}")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        print_error "Dépendances manquantes : ${missing[*]}"
+        if [ "${HOST_OS}" = "Linux" ]; then
+            print_info "Installation : sudo apt install ${missing[*]}"
+        else
+            print_info "Installation : brew install ${missing[*]}"
+        fi
+        exit 1
+    fi
+
+    print_success "Toutes les dépendances sont présentes (curl, unzip)"
 }
 
-print_info() {
-    echo -e "${BLUE}[i]${NC} $1"
+# ---------------------------------------------------------------------------
+# Création de l'arborescence EFI
+# ---------------------------------------------------------------------------
+create_efi_tree() {
+    print_header "Étape 1/6 — Création de l'arborescence EFI"
+
+    local dirs=(
+        "EFI/BOOT"
+        "EFI/OC/ACPI"
+        "EFI/OC/Drivers"
+        "EFI/OC/Kexts"
+        "EFI/OC/Resources"
+        "EFI/OC/Tools"
+    )
+
+    mkdir -p "${WORK_DIR}/Downloads"
+    for d in "${dirs[@]}"; do
+        mkdir -p "${WORK_DIR}/${d}"
+    done
+
+    print_success "Arborescence EFI créée dans ${WORK_DIR}"
 }
 
-# Télécharger un fichier depuis GitHub releases (latest)
+# ---------------------------------------------------------------------------
+# Fonction de téléchargement depuis les releases GitHub
+# ---------------------------------------------------------------------------
 download_github_release() {
-    local repo="$1"
-    local filter="$2"
-    local dest_dir="$3"
-    local name="$4"
-
+    local repo="$1" filter="$2" dest_dir="$3" name="$4"
     print_step "Téléchargement de ${name}..."
 
     local api_url="https://api.github.com/repos/${repo}/releases/latest"
     local data
-    data="$(curl -qLs "${api_url}")"
+    data=$(curl -qLs "${api_url}")
 
     if [ -z "${data}" ]; then
         print_error "Impossible de récupérer les métadonnées pour ${repo}"
@@ -66,196 +156,284 @@ download_github_release() {
     fi
 
     local dwld_url
-    dwld_url="$(echo "${data}" | grep '"browser_download_url":' | \
-        grep "${filter}" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null)"
+    dwld_url=$(echo "${data}" | grep '"browser_download_url":' | grep "${filter}" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 
     if [ -z "${dwld_url}" ]; then
-        print_error "Impossible de trouver l'URL de téléchargement pour ${name}"
+        print_error "URL introuvable pour ${name}"
         return 1
     fi
 
-    local tmp_file="${dest_dir}/${name}.zip"
-
-    curl -qLs -o "${tmp_file}" "${dwld_url}"
-    if [ $? -ne 0 ]; then
-        print_error "Échec du téléchargement de ${name}"
-        return 1
-    fi
-
-    unzip -q -o -d "${dest_dir}" "${tmp_file}"
-    rm -f "${tmp_file}"
-    rm -rf "${dest_dir}/__MACOSX" 2>/dev/null
+    local tmp="${dest_dir}/${name}.zip"
+    curl -qLs -o "${tmp}" "${dwld_url}"
+    unzip -q -o -d "${dest_dir}" "${tmp}"
+    rm -f "${tmp}"
+    rm -rf "${dest_dir}/__MACOSX" 2>/dev/null || true
 
     print_info "${name} téléchargé avec succès"
-    return 0
 }
 
-# --- Script principal ---
+# ---------------------------------------------------------------------------
+# Téléchargement et installation d'OpenCore
+# ---------------------------------------------------------------------------
+setup_opencore() {
+    print_header "Étape 2/6 — Téléchargement d'OpenCore (RELEASE)"
 
-print_header "Setup EFI OpenCore - ASUS Z97-C + i7-4790 + RX 580"
+    local tmp_dir="${WORK_DIR}/Downloads/opencore"
+    mkdir -p "${tmp_dir}"
 
-echo -e "Ce script va :"
-echo -e "  1. Créer l'arborescence EFI/OC"
-echo -e "  2. Télécharger OpenCore (dernière version RELEASE)"
-echo -e "  3. Télécharger les Kexts nécessaires"
-echo -e "  4. Télécharger les Drivers UEFI"
-echo -e "  5. Télécharger les tables ACPI pré-compilées"
-echo -e ""
-echo -e "Dossier de travail : ${BOLD}${WORK_DIR}${NC}"
-echo ""
-read -p "Continuer ? (o/N) " confirm
-if [[ ! "${confirm}" =~ ^[oOyY]$ ]]; then
-    echo "Abandon."
-    exit 0
-fi
+    download_github_release "acidanthera/OpenCorePkg" "RELEASE" "${tmp_dir}" "OpenCore"
 
-# --- Étape 1 : Créer l'arborescence ---
+    # Recherche du répertoire X64 extrait
+    local oc_x64
+    oc_x64=$(find "${tmp_dir}" -type d -name "X64" | head -1)
 
-print_header "Étape 1/5 – Création de l'arborescence EFI"
-
-mkdir -p "${EFI_DIR}/BOOT"
-mkdir -p "${EFI_DIR}/OC/ACPI"
-mkdir -p "${EFI_DIR}/OC/Drivers"
-mkdir -p "${EFI_DIR}/OC/Kexts"
-mkdir -p "${EFI_DIR}/OC/Resources"
-mkdir -p "${EFI_DIR}/OC/Tools"
-mkdir -p "${WORK_DIR}/Downloads"
-
-print_step "Arborescence créée :"
-find "${EFI_DIR}" -type d | sed "s|${WORK_DIR}/||"
-
-# --- Étape 2 : Télécharger OpenCore ---
-
-print_header "Étape 2/5 – Téléchargement d'OpenCore"
-
-download_github_release "acidanthera/OpenCorePkg" "RELEASE" "${WORK_DIR}/Downloads" "OpenCore"
-
-# Copier les fichiers essentiels depuis l'archive OpenCore
-if [ -d "${WORK_DIR}/Downloads/X64/EFI" ]; then
-    cp "${WORK_DIR}/Downloads/X64/EFI/BOOT/BOOTx64.efi" "${EFI_DIR}/BOOT/"
-    cp "${WORK_DIR}/Downloads/X64/EFI/OC/OpenCore.efi" "${EFI_DIR}/OC/"
-    cp "${WORK_DIR}/Downloads/X64/EFI/OC/Drivers/OpenRuntime.efi" "${EFI_DIR}/OC/Drivers/"
-    print_step "BOOTx64.efi, OpenCore.efi, OpenRuntime.efi copiés"
-
-    # Copier le Sample.plist comme base pour le config.plist
-    if [ -f "${WORK_DIR}/Downloads/Docs/Sample.plist" ]; then
-        cp "${WORK_DIR}/Downloads/Docs/Sample.plist" "${EFI_DIR}/OC/config.plist"
-        print_step "Sample.plist copié comme config.plist (à personnaliser)"
+    if [ -z "${oc_x64}" ]; then
+        print_error "Répertoire X64 introuvable dans l'archive OpenCore"
+        return 1
     fi
 
-    # Copier ocvalidate si disponible
-    if [ -f "${WORK_DIR}/Downloads/Utilities/ocvalidate/ocvalidate" ]; then
-        cp "${WORK_DIR}/Downloads/Utilities/ocvalidate/ocvalidate" "${WORK_DIR}/"
+    # Copie des fichiers EFI essentiels
+    cp "${oc_x64}/EFI/BOOT/BOOTx64.efi"            "${EFI_DIR}/BOOT/BOOTx64.efi"
+    print_success "BOOTx64.efi copié"
+
+    cp "${oc_x64}/EFI/OC/OpenCore.efi"              "${EFI_DIR}/OC/OpenCore.efi"
+    print_success "OpenCore.efi copié"
+
+    cp "${oc_x64}/EFI/OC/Drivers/OpenRuntime.efi"   "${EFI_DIR}/OC/Drivers/OpenRuntime.efi"
+    print_success "OpenRuntime.efi copié"
+
+    # Copie de ResetNvramEntry.efi (driver de réinitialisation NVRAM)
+    local reset_efi
+    reset_efi=$(find "${tmp_dir}" -name "ResetNvramEntry.efi" -path "*/X64/*" | head -1)
+    if [ -n "${reset_efi}" ]; then
+        cp "${reset_efi}" "${EFI_DIR}/OC/Drivers/ResetNvramEntry.efi"
+        print_success "ResetNvramEntry.efi copié"
+    else
+        print_warning "ResetNvramEntry.efi introuvable — vérifiez manuellement"
+    fi
+
+    # Copie du Sample.plist comme base pour config.plist
+    local sample_plist
+    sample_plist=$(find "${tmp_dir}" -name "Sample.plist" | head -1)
+    if [ -n "${sample_plist}" ]; then
+        cp "${sample_plist}" "${EFI_DIR}/OC/config.plist"
+        print_success "Sample.plist copié comme config.plist (à configurer)"
+    else
+        print_error "Sample.plist introuvable dans l'archive OpenCore"
+        return 1
+    fi
+
+    # Copie d'ocvalidate si disponible (outil de validation)
+    local ocvalidate
+    ocvalidate=$(find "${tmp_dir}" -name "ocvalidate" -path "*/Utilities/*" | head -1)
+    if [ -n "${ocvalidate}" ]; then
+        cp "${ocvalidate}" "${WORK_DIR}/ocvalidate"
         chmod +x "${WORK_DIR}/ocvalidate"
-        print_step "ocvalidate copié dans le dossier de travail"
+        print_success "ocvalidate copié dans le dossier de travail"
     fi
-else
-    print_warn "Structure OpenCore non trouvée dans Downloads/X64/EFI"
-    print_warn "Vérifiez manuellement l'archive téléchargée"
-fi
 
-# --- Étape 3 : Télécharger les Kexts ---
+    print_success "OpenCore installé"
+}
 
-print_header "Étape 3/5 – Téléchargement des Kexts"
+# ---------------------------------------------------------------------------
+# Téléchargement des 8 kexts de base
+# Nota : les kexts Fenvi sont gérés par setup-fenvi.sh
+# ---------------------------------------------------------------------------
+download_base_kexts() {
+    print_header "Étape 3/6 — Téléchargement des Kexts de base"
 
-KEXTS_TMP="${WORK_DIR}/Downloads/kexts-tmp"
-mkdir -p "${KEXTS_TMP}"
+    local kexts_dir="${EFI_DIR}/OC/Kexts"
+    local tmp_dir="${WORK_DIR}/Downloads/kexts"
+    mkdir -p "${tmp_dir}"
 
-# Lilu (framework de base – doit être chargé en premier)
-download_github_release "acidanthera/Lilu" "RELEASE" "${KEXTS_TMP}" "Lilu"
-[ -d "${KEXTS_TMP}/Lilu.kext" ] && cp -R "${KEXTS_TMP}/Lilu.kext" "${EFI_DIR}/OC/Kexts/"
-
-# VirtualSMC + plugins
-download_github_release "acidanthera/VirtualSMC" "RELEASE" "${KEXTS_TMP}" "VirtualSMC"
-if [ -d "${KEXTS_TMP}/Kexts" ]; then
-    for kext in VirtualSMC SMCProcessor SMCSuperIO; do
-        [ -d "${KEXTS_TMP}/Kexts/${kext}.kext" ] && cp -R "${KEXTS_TMP}/Kexts/${kext}.kext" "${EFI_DIR}/OC/Kexts/"
-    done
-fi
-
-# WhateverGreen (GPU)
-download_github_release "acidanthera/WhateverGreen" "RELEASE" "${KEXTS_TMP}" "WhateverGreen"
-[ -d "${KEXTS_TMP}/WhateverGreen.kext" ] && cp -R "${KEXTS_TMP}/WhateverGreen.kext" "${EFI_DIR}/OC/Kexts/"
-
-# AppleALC (audio)
-download_github_release "acidanthera/AppleALC" "RELEASE" "${KEXTS_TMP}" "AppleALC"
-[ -d "${KEXTS_TMP}/AppleALC.kext" ] && cp -R "${KEXTS_TMP}/AppleALC.kext" "${EFI_DIR}/OC/Kexts/"
-
-# IntelMausi (Ethernet Intel I218-V)
-download_github_release "acidanthera/IntelMausi" "RELEASE" "${KEXTS_TMP}" "IntelMausi"
-[ -d "${KEXTS_TMP}/IntelMausi.kext" ] && cp -R "${KEXTS_TMP}/IntelMausi.kext" "${EFI_DIR}/OC/Kexts/"
-
-# AQtion (réseau 10G Aquantia AQC107)
-download_github_release "Mieze/AQtion" "" "${KEXTS_TMP}" "AQtion"
-# Le kext peut être à la racine ou dans un sous-dossier
-for kext_file in "${KEXTS_TMP}"/*.kext "${KEXTS_TMP}"/**/*.kext; do
-    if [ -d "${kext_file}" ]; then
-        cp -R "${kext_file}" "${EFI_DIR}/OC/Kexts/"
-        break
+    # --- 1. Lilu.kext (framework de base — chargé en premier) ---
+    download_github_release "acidanthera/Lilu" "RELEASE" "${tmp_dir}" "Lilu"
+    if [ -d "${tmp_dir}/Lilu.kext" ]; then
+        cp -R "${tmp_dir}/Lilu.kext" "${kexts_dir}/"
+        print_success "Lilu.kext installé"
+    else
+        print_error "Lilu.kext introuvable après extraction"
     fi
-done
+    rm -rf "${tmp_dir:?}/"*
 
-# Nettoyage des fichiers temporaires kexts
-rm -rf "${KEXTS_TMP}"
+    # --- 2. VirtualSMC + SMCProcessor + SMCSuperIO ---
+    download_github_release "acidanthera/VirtualSMC" "RELEASE" "${tmp_dir}" "VirtualSMC"
+    # Cherche le sous-dossier Kexts dans l'archive
+    local vsmc_kexts
+    vsmc_kexts=$(find "${tmp_dir}" -type d -name "Kexts" | head -1)
+    if [ -n "${vsmc_kexts}" ]; then
+        cp -R "${vsmc_kexts}/VirtualSMC.kext"    "${kexts_dir}/"
+        cp -R "${vsmc_kexts}/SMCProcessor.kext"   "${kexts_dir}/"
+        cp -R "${vsmc_kexts}/SMCSuperIO.kext"     "${kexts_dir}/"
+    else
+        # Structure alternative : kexts directement à la racine
+        find "${tmp_dir}" -maxdepth 2 -name "VirtualSMC.kext"   -exec cp -R {} "${kexts_dir}/" \;
+        find "${tmp_dir}" -maxdepth 2 -name "SMCProcessor.kext"  -exec cp -R {} "${kexts_dir}/" \;
+        find "${tmp_dir}" -maxdepth 2 -name "SMCSuperIO.kext"    -exec cp -R {} "${kexts_dir}/" \;
+    fi
+    print_success "VirtualSMC + SMCProcessor + SMCSuperIO installés"
+    rm -rf "${tmp_dir:?}/"*
 
-print_step "Kexts installés :"
-ls -1 "${EFI_DIR}/OC/Kexts/" 2>/dev/null | sed 's/^/  /'
+    # --- 3. WhateverGreen.kext (gestion GPU RX 580) ---
+    download_github_release "acidanthera/WhateverGreen" "RELEASE" "${tmp_dir}" "WhateverGreen"
+    if [ -d "${tmp_dir}/WhateverGreen.kext" ]; then
+        cp -R "${tmp_dir}/WhateverGreen.kext" "${kexts_dir}/"
+        print_success "WhateverGreen.kext installé"
+    else
+        print_error "WhateverGreen.kext introuvable après extraction"
+    fi
+    rm -rf "${tmp_dir:?}/"*
 
-# --- Étape 4 : Télécharger HfsPlus.efi ---
+    # --- 4. AppleALC.kext (audio ALC892, layout-id=1) ---
+    download_github_release "acidanthera/AppleALC" "RELEASE" "${tmp_dir}" "AppleALC"
+    if [ -d "${tmp_dir}/AppleALC.kext" ]; then
+        cp -R "${tmp_dir}/AppleALC.kext" "${kexts_dir}/"
+        print_success "AppleALC.kext installé"
+    else
+        print_error "AppleALC.kext introuvable après extraction"
+    fi
+    rm -rf "${tmp_dir:?}/"*
 
-print_header "Étape 4/5 – Téléchargement des Drivers UEFI"
+    # --- 5. IntelMausi.kext (Ethernet Intel I218-V intégré au Z97-C) ---
+    download_github_release "acidanthera/IntelMausi" "RELEASE" "${tmp_dir}" "IntelMausi"
+    if [ -d "${tmp_dir}/IntelMausi.kext" ]; then
+        cp -R "${tmp_dir}/IntelMausi.kext" "${kexts_dir}/"
+        print_success "IntelMausi.kext installé"
+    else
+        print_error "IntelMausi.kext introuvable après extraction"
+    fi
+    rm -rf "${tmp_dir:?}/"*
 
-print_step "Téléchargement de HfsPlus.efi..."
-curl -qLs -o "${EFI_DIR}/OC/Drivers/HfsPlus.efi" \
-    "https://github.com/acidanthera/OcBinaryData/raw/master/Drivers/HfsPlus.efi"
+    # --- 6. AQtion.kext (réseau 10G Kalea AQC113) ---
+    download_github_release "Mieze/AQtion" "RELEASE" "${tmp_dir}" "AQtion"
+    local aqtion_kext
+    aqtion_kext=$(find "${tmp_dir}" -name "AQtion.kext" -type d | head -1)
+    if [ -n "${aqtion_kext}" ]; then
+        cp -R "${aqtion_kext}" "${kexts_dir}/"
+        print_success "AQtion.kext installé"
+    else
+        print_warning "AQtion.kext introuvable — téléchargement manuel peut être nécessaire"
+    fi
+    rm -rf "${tmp_dir:?}/"*
 
-if [ -f "${EFI_DIR}/OC/Drivers/HfsPlus.efi" ]; then
-    print_info "HfsPlus.efi téléchargé"
-else
-    print_error "Échec du téléchargement de HfsPlus.efi"
-fi
+    rm -rf "${tmp_dir}"
 
-print_step "Drivers installés :"
-ls -1 "${EFI_DIR}/OC/Drivers/" 2>/dev/null | sed 's/^/  /'
+    # Résumé des kexts installés
+    print_info "Kexts installés :"
+    ls -1 "${kexts_dir}/" 2>/dev/null | sed 's/^/    /'
+}
 
-# --- Étape 5 : Télécharger les tables ACPI ---
+# ---------------------------------------------------------------------------
+# Téléchargement de HfsPlus.efi depuis OcBinaryData
+# ---------------------------------------------------------------------------
+download_hfsplus() {
+    print_header "Étape 4/6 — Téléchargement de HfsPlus.efi"
 
-print_header "Étape 5/5 – Téléchargement des tables ACPI"
+    local url="https://raw.githubusercontent.com/acidanthera/OcBinaryData/master/Drivers/HfsPlus.efi"
+    print_step "Téléchargement de HfsPlus.efi depuis OcBinaryData..."
 
-ACPI_BASE="https://github.com/dortania/Getting-Started-With-ACPI/raw/master/extra-files/compiled"
+    curl -qLs -o "${EFI_DIR}/OC/Drivers/HfsPlus.efi" "${url}"
 
-print_step "Téléchargement de SSDT-PLUG..."
-curl -qLs -o "${EFI_DIR}/OC/ACPI/SSDT-PLUG.aml" \
-    "${ACPI_BASE}/SSDT-PLUG-DRTNIA.aml"
+    if [ -f "${EFI_DIR}/OC/Drivers/HfsPlus.efi" ]; then
+        print_success "HfsPlus.efi téléchargé"
+    else
+        print_error "Échec du téléchargement de HfsPlus.efi"
+        return 1
+    fi
 
-print_step "Téléchargement de SSDT-EC-USBX (combiné)..."
-curl -qLs -o "${EFI_DIR}/OC/ACPI/SSDT-EC-USBX.aml" \
-    "${ACPI_BASE}/SSDT-EC-USBX-DESKTOP.aml"
+    # Résumé des drivers installés
+    print_info "Drivers UEFI installés :"
+    ls -1 "${EFI_DIR}/OC/Drivers/" 2>/dev/null | sed 's/^/    /'
+}
 
-print_step "Tables ACPI installées :"
-ls -1 "${EFI_DIR}/OC/ACPI/" 2>/dev/null | sed 's/^/  /'
+# ---------------------------------------------------------------------------
+# Téléchargement des SSDTs compilés depuis Dortania
+# ---------------------------------------------------------------------------
+download_ssdts() {
+    print_header "Étape 5/6 — Téléchargement des tables ACPI (SSDTs)"
 
-# --- Résumé ---
+    local base_url="https://raw.githubusercontent.com/dortania/Getting-Started-With-ACPI/master/extra-files/compiled"
 
-print_header "Terminé !"
+    # SSDT-PLUG pour la gestion de l'énergie CPU (Haswell)
+    print_step "Téléchargement de SSDT-PLUG-DRTNIA.aml..."
+    curl -qLs -o "${EFI_DIR}/OC/ACPI/SSDT-PLUG-DRTNIA.aml" \
+        "${base_url}/SSDT-PLUG-DRTNIA.aml"
 
-echo -e "Arborescence EFI complète :"
-echo ""
-find "${EFI_DIR}" -type f | sort | sed "s|${WORK_DIR}/||" | while read -r f; do
-    echo -e "  ${GREEN}✓${NC} ${f}"
-done
+    if [ -f "${EFI_DIR}/OC/ACPI/SSDT-PLUG-DRTNIA.aml" ]; then
+        print_success "SSDT-PLUG-DRTNIA.aml téléchargé"
+    else
+        print_error "Échec du téléchargement de SSDT-PLUG-DRTNIA.aml"
+    fi
 
-echo ""
-echo -e "${YELLOW}${BOLD}Prochaines étapes :${NC}"
-echo -e "  1. Personnalisez ${BOLD}EFI/OC/config.plist${NC} avec ProperTree (voir Guide 5)"
-echo -e "  2. Lancez ${BOLD}OC Snapshot${NC} dans ProperTree pour synchroniser les fichiers"
-echo -e "  3. Générez le SMBIOS avec ${BOLD}GenSMBIOS${NC} (modèle : iMac15,1)"
-echo -e "  4. Copiez l'EFI sur la partition EFI de votre clé USB (voir Guide 6)"
-echo ""
-echo -e "${BLUE}Dossier de travail : ${BOLD}${WORK_DIR}${NC}"
+    # SSDT-EC-USBX pour le contrôleur embarqué et l'alimentation USB
+    print_step "Téléchargement de SSDT-EC-USBX-DESKTOP.aml..."
+    curl -qLs -o "${EFI_DIR}/OC/ACPI/SSDT-EC-USBX-DESKTOP.aml" \
+        "${base_url}/SSDT-EC-USBX-DESKTOP.aml"
 
-# Nettoyage des fichiers temporaires
-rm -rf "${WORK_DIR}/Downloads" 2>/dev/null
+    if [ -f "${EFI_DIR}/OC/ACPI/SSDT-EC-USBX-DESKTOP.aml" ]; then
+        print_success "SSDT-EC-USBX-DESKTOP.aml téléchargé"
+    else
+        print_error "Échec du téléchargement de SSDT-EC-USBX-DESKTOP.aml"
+    fi
 
-echo ""
-print_info "Script terminé. Consultez les Guides 5 et 6 pour la suite."
+    # Résumé des tables ACPI
+    print_info "Tables ACPI installées :"
+    ls -1 "${EFI_DIR}/OC/ACPI/" 2>/dev/null | sed 's/^/    /'
+}
+
+# ---------------------------------------------------------------------------
+# Vérification finale — affichage de l'arborescence complète
+# ---------------------------------------------------------------------------
+print_final_tree() {
+    print_header "Étape 6/6 — Vérification de l'arborescence"
+
+    if command -v tree &>/dev/null; then
+        tree "${EFI_DIR}"
+    else
+        # Affichage alternatif si 'tree' n'est pas installé
+        print_info "Contenu du dossier EFI :"
+        find "${EFI_DIR}" -type f | sort | while read -r f; do
+            echo -e "  ${GREEN}✓${NC} ${f#${WORK_DIR}/}"
+        done
+    fi
+
+    echo ""
+    print_success "Construction du dossier EFI terminée avec succès !"
+    echo ""
+    echo -e "${YELLOW}${BOLD}Prochaines étapes :${NC}"
+    echo -e "  1. Exécutez ${BOLD}setup-fenvi.sh${NC} pour les kexts Wi-Fi/Bluetooth Fenvi T919"
+    echo -e "  2. Exécutez ${BOLD}generate-config.sh${NC} pour configurer config.plist"
+    echo -e "  3. Générez vos numéros de série avec ${BOLD}GenSMBIOS${NC} (modèle iMac18,1)"
+    echo -e "  4. Copiez le dossier EFI sur la partition EFI de votre clé USB"
+    echo ""
+    echo -e "${BLUE}Dossier de travail : ${BOLD}${WORK_DIR}${NC}"
+}
+
+# =============================================================================
+# Point d'entrée principal
+# =============================================================================
+main() {
+    echo ""
+    echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}║  Construction du dossier EFI OpenCore (Hackintosh)  ║${NC}"
+    echo -e "${BOLD}║  ASUS Z97-C | i7-4790 | RX 580 | Kalea AQC113      ║${NC}"
+    echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "Dossier de travail : ${BOLD}${WORK_DIR}${NC}"
+    echo ""
+
+    detect_os
+    check_deps
+    create_efi_tree
+    setup_opencore
+    download_base_kexts
+    download_hfsplus
+    download_ssdts
+
+    # Nettoyage des fichiers temporaires de téléchargement
+    rm -rf "${WORK_DIR}/Downloads" 2>/dev/null || true
+
+    print_final_tree
+}
+
+main "$@"

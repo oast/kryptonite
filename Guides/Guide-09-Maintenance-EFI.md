@@ -1,278 +1,248 @@
 ---
-title: "Guide 9 – Maintenance et mise à jour de l'EFI"
+title: "Guide 9 – Maintenance, mises à jour et sauvegarde de l'EFI"
 author: "Projet Kryptonite"
-date: "2026-04-01"
+date: "2026-04-02"
 lang: fr
 geometry: margin=2.5cm
 fontsize: 11pt
 toc: true
 ---
 
-# Guide 9 – Maintenance et mise à jour de l'EFI
+# Guide 9 – Maintenance, mises à jour et sauvegarde de l'EFI
 
-> **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | macOS Sequoia
-
----
-
-## Prérequis
-
-- macOS Sequoia installé et fonctionnel (voir guides précédents)
-- Boot autonome depuis le disque interne (voir [Guide 8](Guide-08-Post-Installation-USB.md))
+> **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | Fenvi T919 | Kalea AQC113 | macOS Sequoia
+> **SMBIOS** : iMac18,1 | **OpenCore** : dernière version stable
 
 ---
 
-## Étape 1 – Sauvegarder votre EFI avant toute modification
+## 9.1 Sauvegarder votre EFI AVANT toute modification
 
-> ⚠️ **Règle d'or** : ne modifiez JAMAIS votre EFI sans avoir une sauvegarde fonctionnelle.
+> **RÈGLE D'OR** : Ne modifiez JAMAIS votre EFI sans sauvegarde fonctionnelle.
 
-### 1.1 – Créer une sauvegarde
+### Créer une sauvegarde
 
 ```bash
 # Monter la partition EFI
 sudo diskutil mount disk0s1
 
-# Créer un dossier de sauvegardes daté
+# Créer le dossier de sauvegardes
 mkdir -p ~/Desktop/EFI-Backups
-cp -R /Volumes/EFI/EFI ~/Desktop/EFI-Backups/EFI-$(date +%Y-%m-%d)
 
-# Vérifier la sauvegarde
-ls ~/Desktop/EFI-Backups/
+# Sauvegarder avec la date du jour
+cp -R /Volumes/EFI/EFI ~/Desktop/EFI-Backups/EFI-$(date +%Y-%m-%d)
 ```
 
-### 1.2 – Stratégie de sauvegarde recommandée
+### Stratégie de sauvegarde
 
 | Quand sauvegarder | Pourquoi |
 |-------------------|----------|
-| Avant chaque mise à jour de macOS | Les MAJ peuvent casser la compatibilité |
-| Avant chaque modification de l'EFI | Pour pouvoir revenir en arrière |
-| Après chaque modification réussie | Pour avoir une référence stable |
-| Sur un support externe (clé USB) | En cas de panne du disque interne |
+| Avant toute modification du config.plist | Retour arrière possible en cas de no-boot |
+| Avant une mise à jour macOS | L'EFI peut devenir incompatible |
+| Avant une mise à jour d'OpenCore | Même raison |
+| Après une configuration stable et fonctionnelle | Point de restauration fiable |
 
-### 1.3 – Garder une clé USB de secours
+### Clé USB de secours
 
-Conservez toujours votre clé USB d'installation avec un EFI fonctionnel. En cas de problème avec l'EFI du disque interne, vous pourrez booter depuis la clé USB et corriger.
+**Gardez TOUJOURS une clé USB avec un EFI fonctionnel.** En cas de problème, vous pourrez booter depuis la clé pour réparer l'EFI du disque interne.
 
 ```bash
-# Copier l'EFI fonctionnel sur la clé USB de secours
+# Copier l'EFI actuel sur la clé USB de secours
 sudo diskutil mount disk2s1    # Partition EFI de la clé USB
 sudo cp -R /Volumes/EFI/EFI /Volumes/EFI\ 1/
+sudo diskutil unmount disk2s1
 ```
 
 ---
 
-## Étape 2 – Mettre à jour OpenCore
+## 9.2 Mettre à jour OpenCore
 
-### 2.1 – Vérifier la version actuelle
+### Vérifier la version actuelle
 
 ```bash
-# Dans le Terminal, vérifiez la version d'OpenCore
 nvram 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:opencore-version
 ```
 
-### 2.2 – Télécharger la nouvelle version
+### Procédure de mise à jour
 
-1. Consultez les [releases OpenCore](https://github.com/acidanthera/OpenCorePkg/releases)
-2. Lisez les **notes de version** pour les changements importants
-3. Téléchargez la version RELEASE
+1. **Téléchargez** la nouvelle version depuis https://github.com/acidanthera/OpenCorePkg/releases
 
-```bash
-cd ~/Desktop
-curl -LO "https://github.com/acidanthera/OpenCorePkg/releases/latest/download/OpenCore-RELEASE.zip"
-unzip OpenCore-RELEASE.zip -d OpenCore-NEW
-```
+2. **Mettez à jour fichier par fichier** (ne remplacez PAS tout le dossier EFI) :
+   - `EFI/BOOT/BOOTx64.efi`
+   - `EFI/OC/OpenCore.efi`
+   - `EFI/OC/Drivers/OpenRuntime.efi`
 
-### 2.3 – Mettre à jour les fichiers
+3. **Mettez à jour le config.plist** :
+   - Lisez `Differences.pdf` dans l'archive OpenCore (liste les changements)
+   - Comparez votre config avec le nouveau `Sample.plist`
+   - Ajoutez les nouvelles clés manquantes
+   - Exécutez OC Snapshot dans ProperTree (Cmd+R / Ctrl+R)
 
-> ⚠️ **Ne remplacez pas tout le dossier EFI d'un coup.** Mettez à jour fichier par fichier.
+4. **Validez** :
+   ```bash
+   # Téléchargez ocvalidate depuis l'archive OpenCore (dossier Utilities)
+   ./ocvalidate EFI/OC/config.plist
+   ```
 
-```bash
-# Monter la partition EFI
-sudo diskutil mount disk0s1
-
-# Mettre à jour les fichiers OpenCore de base
-cp OpenCore-NEW/X64/EFI/BOOT/BOOTx64.efi /Volumes/EFI/EFI/BOOT/
-cp OpenCore-NEW/X64/EFI/OC/OpenCore.efi /Volumes/EFI/EFI/OC/
-cp OpenCore-NEW/X64/EFI/OC/Drivers/OpenRuntime.efi /Volumes/EFI/EFI/OC/Drivers/
-```
-
-### 2.4 – Mettre à jour le config.plist
-
-Chaque version d'OpenCore peut introduire de nouvelles clés dans le config.plist :
-
-1. Consultez le fichier `Differences.pdf` inclus dans l'archive
-2. Ouvrez votre config.plist existant dans ProperTree
-3. Comparez avec le nouveau `Sample.plist`
-4. Ajoutez les nouvelles clés et supprimez les clés obsolètes
-
-```bash
-# Comparer les deux fichiers (optionnel, pour les utilisateurs avancés)
-diff <(plutil -convert xml1 -o - /Volumes/EFI/EFI/OC/config.plist | sort) \
-     <(plutil -convert xml1 -o - OpenCore-NEW/Docs/Sample.plist | sort)
-```
-
-5. Lancez **OC Snapshot** dans ProperTree pour synchroniser
-6. Validez avec `ocvalidate` :
-
-```bash
-OpenCore-NEW/Utilities/ocvalidate/ocvalidate /Volumes/EFI/EFI/OC/config.plist
-```
+> **Ne sautez pas d'étape.** Un config.plist incompatible avec la nouvelle version d'OpenCore peut empêcher le boot.
 
 ---
 
-## Étape 3 – Mettre à jour les Kexts
+## 9.3 Mettre à jour les kexts
 
-### 3.1 – Vérifier les versions installées
+### Vérifier les versions actuelles
 
 ```bash
-# Lister les kexts et leurs versions
 for kext in /Volumes/EFI/EFI/OC/Kexts/*.kext; do
     version=$(defaults read "$kext/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "N/A")
     echo "$(basename $kext): $version"
 done
 ```
 
-### 3.2 – Télécharger les nouvelles versions
+### Ordre de mise à jour
 
-Mettez à jour chaque kext individuellement :
+1. **Lilu.kext en premier** — c'est le framework dont dépendent VirtualSMC, WhateverGreen, AppleALC, etc.
+2. Ensuite les autres kexts dans n'importe quel ordre
+3. Exécutez OC Snapshot dans ProperTree après la mise à jour
 
-```bash
-cd ~/Desktop
+### Sources des kexts
 
-# Lilu
-curl -LO "https://github.com/acidanthera/Lilu/releases/latest/download/Lilu-RELEASE.zip"
-
-# VirtualSMC
-curl -LO "https://github.com/acidanthera/VirtualSMC/releases/latest/download/VirtualSMC-RELEASE.zip"
-
-# WhateverGreen
-curl -LO "https://github.com/acidanthera/WhateverGreen/releases/latest/download/WhateverGreen-RELEASE.zip"
-
-# AppleALC
-curl -LO "https://github.com/acidanthera/AppleALC/releases/latest/download/AppleALC-RELEASE.zip"
-
-# IntelMausi
-curl -LO "https://github.com/acidanthera/IntelMausi/releases/latest/download/IntelMausi-RELEASE.zip"
-```
-
-### 3.3 – Remplacer les kexts
-
-```bash
-# Exemple pour Lilu (répétez pour chaque kext)
-unzip Lilu-RELEASE.zip -d Lilu-temp
-rm -rf /Volumes/EFI/EFI/OC/Kexts/Lilu.kext
-cp -R Lilu-temp/Lilu.kext /Volumes/EFI/EFI/OC/Kexts/
-rm -rf Lilu-temp Lilu-RELEASE.zip
-```
-
-> ⚠️ **Mettez à jour Lilu en premier**, car c'est le framework dont dépendent les autres kexts. En cas d'incompatibilité, vous saurez que le problème vient de Lilu.
-
-### 3.4 – Synchroniser le config.plist
-
-Après avoir mis à jour les kexts :
-
-1. Ouvrez le config.plist dans ProperTree
-2. Lancez **OC Snapshot** (`File > OC Snapshot`)
-3. Sauvegardez
+| Kext | Source |
+|------|--------|
+| Lilu, VirtualSMC, WhateverGreen, AppleALC, IntelMausi | github.com/acidanthera |
+| AQtion | github.com/Mieze/AQtion |
+| AirportBrcmFixup, BrcmPatchRAM | github.com/acidanthera |
+| AMFIPass, IOSkywalkFamily, IO80211FamilyLegacy | github.com/dortania/OpenCore-Legacy-Patcher |
 
 ---
 
-## Étape 4 – Mises à jour macOS
+## 9.4 Mises à jour macOS – PROCÉDURE CRITIQUE
 
-### 4.1 – Avant de mettre à jour macOS
+### Avant la mise à jour
 
-1. **Sauvegardez votre EFI** (Étape 1)
-2. **Consultez les forums** Hackintosh pour vérifier la compatibilité de la mise à jour
-3. **Mettez à jour OpenCore et les kexts** vers les dernières versions stables
-4. **Préparez votre clé USB de secours** avec l'EFI fonctionnel
+1. **Sauvegarder l'EFI** (section 9.1)
+2. **Vérifier la compatibilité** sur les forums :
+   - r/hackintosh
+   - InsanelyMac
+   - Dortania Discord
+3. **Mettre à jour OpenCore** à la dernière version (section 9.2)
+4. **Mettre à jour tous les kexts** (section 9.3)
+5. **Préparer la clé USB de secours** avec l'EFI actuel fonctionnel
 
-### 4.2 – Appliquer la mise à jour
+### Installer la mise à jour
 
-1. Ouvrez **Préférences Système > Mise à jour de logiciels**
-2. Téléchargez la mise à jour (ne l'installez pas encore)
-3. Vérifiez une dernière fois votre sauvegarde EFI
-4. Lancez l'installation
+- Réglages Système → Général → Mise à jour logicielle
+- Ou : `softwareupdate --list` puis `softwareupdate --install`
 
-> ⚠️ **Mises à jour mineures** (ex: 15.1 → 15.1.1) : généralement sûres.
-> ⚠️ **Mises à jour majeures** (ex: 15.x → 16.x) : attendez les retours de la communauté.
+### APRÈS la mise à jour (OBLIGATOIRE)
 
-### 4.3 – Après la mise à jour
+> **Les root patches OCLP sont effacées par chaque mise à jour macOS.**
 
-```bash
-# Vérifier la version de macOS
-sw_vers
+1. macOS redémarre normalement
+2. **Le Wi-Fi Fenvi ne fonctionne plus** — c'est attendu
+3. Ouvrir **OCLP** → **Post-Install Root Patch**
+4. Laisser les patches s'installer (2-5 min)
+5. **Redémarrer**
+6. Le Wi-Fi est rétabli
 
-# Vérifier que tout fonctionne
-system_profiler SPHardwareDataType
-system_profiler SPDisplaysDataType
-system_profiler SPAudioDataType
-system_profiler SPUSBDataType
-```
+### Types de mises à jour
 
-Si le système ne démarre plus après la mise à jour :
-1. Bootez depuis la clé USB de secours
-2. Restaurez l'EFI de sauvegarde
-3. Consultez les forums pour identifier le problème
+| Type | Exemple | Risque | Recommandation |
+|------|---------|--------|----------------|
+| Mise à jour de sécurité | 15.1 → 15.1.1 | Faible | Généralement sûr, appliquer |
+| Mise à jour mineure | 15.1 → 15.2 | Moyen | Attendre 48h les retours communauté |
+| Mise à jour majeure | 15.x → 16.x | Élevé | Attendre les retours, tester sur USB d'abord |
 
 ---
 
-## Étape 5 – Maintenance régulière
+## 9.5 Retirer le mode verbose (quand stable)
 
-### 5.1 – Calendrier de maintenance recommandé
+Une fois le système stable pendant **1-2 semaines** :
+
+### boot-args de débogage à retirer
+
+```
+-v keepsyms=1 debug=0x100
+```
+
+### boot-args à CONSERVER
+
+```
+alcid=1 -amfipassbeta
+```
+
+### Procédure
+
+1. Montez l'EFI : `sudo diskutil mount disk0s1`
+2. Ouvrez le config.plist dans ProperTree
+3. NVRAM → Add → 7C436110... → boot-args
+4. Changez la valeur de :
+   ```
+   -v keepsyms=1 debug=0x100 alcid=1 -amfipassbeta
+   ```
+   en :
+   ```
+   alcid=1 -amfipassbeta
+   ```
+5. Sauvegardez et redémarrez
+
+> **NE PAS ajouter** `agdpmod=pikera`. Ce paramètre est uniquement pour les GPU Navi (RX 5xxx/6xxx/7xxx). La RX 580 est un GPU Polaris qui fonctionne nativement.
+
+---
+
+## 9.6 Calendrier de maintenance
 
 | Fréquence | Action |
 |-----------|--------|
-| Mensuelle | Vérifier les mises à jour des kexts |
-| Trimestrielle | Mettre à jour OpenCore si une nouvelle version stable est disponible |
-| Avant chaque MAJ macOS | Sauvegarder l'EFI + mettre à jour OpenCore/kexts |
-| Annuelle | Nettoyer les anciennes sauvegardes EFI |
+| **Mensuelle** | Vérifier les mises à jour des kexts sur GitHub |
+| **Trimestrielle** | Mettre à jour OpenCore si nouvelle version stable |
+| **Avant chaque MAJ macOS** | Sauvegarder EFI + MAJ OpenCore + MAJ kexts |
+| **Après chaque MAJ macOS** | Réappliquer les root patches OCLP |
+| **Semestrielle** | Vérifier les mises à jour OCLP |
+| **Annuelle** | Nettoyer les anciennes sauvegardes EFI |
 
-### 5.2 – Sources d'information
+---
 
-- [Forum InsanelyMac](https://www.insanelymac.com/)
-- [Subreddit r/hackintosh](https://www.reddit.com/r/hackintosh/)
-- [Dortania Guide](https://dortania.github.io/OpenCore-Install-Guide/)
+## 9.7 Dépannage courant
+
+| Problème | Solution |
+|----------|----------|
+| No boot après MAJ OpenCore | Bootez sur la clé USB de secours, restaurez l'ancien EFI |
+| Wi-Fi perdu après MAJ macOS | Réappliquez les root patches OCLP |
+| Kernel panic après MAJ kext | Restaurez l'ancienne version du kext depuis la sauvegarde |
+| « OC: Failed to load » | config.plist incompatible, validez avec ocvalidate |
+| Boot lent | Retirez le mode verbose (-v) |
+| Erreur « Vault mismatch » | Vérifiez Misc > Security > Vault = Optional |
+
+---
+
+## 9.8 Ressources
+
+- [Dortania OpenCore Install Guide](https://dortania.github.io/OpenCore-Install-Guide/)
+- [Dortania Haswell Config](https://dortania.github.io/OpenCore-Install-Guide/config.plist/haswell.html)
 - [OpenCore Changelog](https://github.com/acidanthera/OpenCorePkg/blob/master/Changelog.md)
-
-### 5.3 – Retirer le mode verbose
-
-Une fois que votre système est stable, retirez `-v` des boot-args pour un démarrage silencieux :
-
-1. Ouvrez le config.plist dans ProperTree
-2. Allez dans `NVRAM > Add > 7C436110-AB2A-4BBB-A880-FE41995C9F82 > boot-args`
-3. Retirez `-v` de la chaîne
-4. Vous pouvez aussi retirer `keepsyms=1` et `debug=0x100`
-5. Résultat : `alcid=1 agdpmod=pikera` (conservez toujours `agdpmod=pikera` pour la RX 580)
-6. Sauvegardez et redémarrez
+- [OpenCore Legacy Patcher](https://github.com/dortania/OpenCore-Legacy-Patcher/releases)
+- [r/hackintosh](https://www.reddit.com/r/hackintosh/)
+- [InsanelyMac](https://www.insanelymac.com/)
+- [Hackintool](https://github.com/benbaker76/Hackintool)
 
 ---
 
 ## Récapitulatif de la série
 
-Félicitations ! Vous avez terminé l'installation complète de macOS Sequoia sur votre ASUS Z97-C. Voici un résumé de ce qui a été accompli :
-
-| Guide | Réalisation |
-|-------|-------------|
-| [Guide 1](Guide-01-Telechargement-macOS.md) | Téléchargement de macOS Sequoia |
-| [Guide 2](Guide-02-Cle-USB-Bootable.md) | Création de la clé USB bootable |
-| [Guide 3](Guide-03-Preparation-OpenCore.md) | Préparation d'OpenCore |
-| [Guide 4](Guide-04-Assemblage-EFI.md) | Assemblage du dossier EFI |
-| [Guide 5](Guide-05-Config-Plist.md) | Configuration du Config.plist |
-| [Guide 6](Guide-06-Copie-EFI-USB.md) | Copie de l'EFI sur la clé USB |
-| [Guide 7](Guide-07-Installation-macOS.md) | Installation de macOS Sequoia |
-| [Guide 8](Guide-08-Post-Installation-USB.md) | Post-installation et mappage USB |
-| [Guide 9](Guide-09-Maintenance-EFI.md) | Maintenance et mises à jour |
+| Guide | Contenu | Statut |
+|-------|---------|--------|
+| [Guide 1](Guide-01-Telechargement-macOS.md) | Téléchargement de macOS Sequoia | ✅ |
+| [Guide 2](Guide-02-Cle-USB-Bootable.md) | Création de la clé USB bootable | ✅ |
+| [Guide 3](Guide-03-Preparation-EFI.md) | Préparation du dossier EFI | ✅ |
+| [Guide 4](Guide-04-Config-Plist.md) | Configuration du Config.plist | ✅ |
+| [Guide 5](Guide-05-Fenvi-WiFi-Bluetooth.md) | Wi-Fi et Bluetooth Fenvi T919 | ✅ |
+| [Guide 6](Guide-06-Copie-EFI-USB.md) | Copie de l'EFI sur la clé USB | ✅ |
+| [Guide 7](Guide-07-BIOS-Installation.md) | BIOS et installation macOS | ✅ |
+| [Guide 8](Guide-08-Post-Installation.md) | Post-installation et OCLP | ✅ |
+| [Guide 9](Guide-09-Maintenance-EFI.md) | Maintenance et mises à jour | ✅ |
 
 ---
 
-## Dépannage
+← Retour à l'[index des guides](README.md)
 
-| Problème | Solution |
-|----------|----------|
-| Boot impossible après MAJ OpenCore | Restaurez l'EFI depuis la sauvegarde via la clé USB |
-| Kext incompatible après mise à jour | Revenez à la version précédente du kext |
-| macOS ne démarre plus après MAJ | Bootez via clé USB, restaurez l'EFI, attendez un correctif |
-| Perte de numéros de série | Gardez vos valeurs SMBIOS dans un fichier texte sécurisé |
-
----
-
-← [Retour à l'index des guides](README.md)
+← Guide précédent : [Guide 8 – Post-installation et OCLP](Guide-08-Post-Installation.md)

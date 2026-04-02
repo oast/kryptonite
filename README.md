@@ -8,6 +8,15 @@ Kryptonite enables external GPUs on Macs using Thunderbolt 1 and 2 without compr
 
 ## Guides d'installation macOS Sequoia (Hackintosh)
 
-Une série de 9 guides pas-à-pas en français pour installer **macOS Sequoia Tahoe** via OpenCore sur un PC de bureau **ASUS Z97-C + Intel i7-4790 + AMD RX 580**.
+Une série de 9 guides pas-à-pas en français pour installer **macOS Sequoia Tahoe** via OpenCore sur un PC de bureau :
+
+| Composant | Modèle |
+|-----------|--------|
+| Carte mère | ASUS Z97-C (Intel Z97) |
+| Processeur | Intel Core i7-4790 (Haswell) |
+| GPU | AMD Radeon RX 580 8 Go (Polaris) |
+| Wi-Fi / Bluetooth | Fenvi T919 (BCM4360CD) + OCLP |
+| Ethernet | Intel I218-V + Kalea AQC113 10G |
+| SMBIOS | iMac18,1 |
 
 Consultez les [Guides d'installation](Guides/README.md) pour commencer.

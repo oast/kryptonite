@@ -1,7 +1,7 @@
 ---
 title: "Guide 2 – Création de la clé USB bootable"
 author: "Projet Kryptonite"
-date: "2026-04-01"
+date: "2026-04-02"
 lang: fr
 geometry: margin=2.5cm
 fontsize: 11pt
@@ -10,149 +10,241 @@ toc: true
 
 # Guide 2 – Création de la clé USB bootable
 
-> **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | macOS Sequoia
+> **Configuration cible** : ASUS Z97-C | Intel i7-4790 | AMD RX 580 | Fenvi T919 | Kalea AQC113 | macOS Sequoia
+> **SMBIOS** : iMac18,1 | **OpenCore** : dernière version stable
 
 ---
 
-## Prérequis
+## 2.1 Préparer la clé USB
 
-- L'installateur `Install macOS Sequoia.app` dans `/Applications/` (voir [Guide 1](Guide-01-Telechargement-macOS.md))
-- Une clé USB de **16 Go minimum** (32 Go recommandé)
-- Un Mac fonctionnel (ou une VM macOS)
+### Exigences
 
-> ⚠️ **Attention** : toutes les données de la clé USB seront effacées. Sauvegardez vos fichiers avant de continuer.
+| Critère | Minimum | Recommandé |
+|---------|---------|------------|
+| **Capacité** | 16 Go | 32 Go |
+| **Interface** | USB 2.0 | USB 3.0 |
+| **Contenu** | Vide ou sauvegardé | Vide |
 
----
+> **Attention** : tout le contenu de la clé sera **effacé**. Sauvegarder vos données avant de continuer.
 
-## Étape 1 – Identifier votre clé USB
+### Identifier la clé USB
 
-1. Branchez la clé USB sur votre Mac
-
-2. Ouvrez le **Terminal** (`Applications > Utilitaires > Terminal`)
-
-3. Listez les disques connectés :
+**Depuis macOS :**
 
 ```bash
 diskutil list
 ```
 
-4. Repérez votre clé USB dans la liste. Elle apparaît généralement comme `/dev/diskN` (N étant un chiffre). Identifiez-la par sa taille (16 Go ou 32 Go).
+- Repérer la clé USB (ex. `/dev/disk2`).
+- Vérifier la taille pour ne pas confondre avec un autre disque.
 
+<!-- CAPTURE D'ÉCRAN : sortie de diskutil list avec la clé USB identifiée -->
+
+**Depuis Linux :**
+
+```bash
+lsblk
 ```
-/dev/disk2 (external, physical):
-   #:                       TYPE NAME                    SIZE       IDENTIFIER
-   0:     FDisk_partition_scheme                        *16.0 GB    disk2
-   1:                 DOS_FAT_32 USB_DRIVE               16.0 GB    disk2s1
-```
 
-> ⚠️ **Notez bien le numéro du disque** (ex: `disk2`). Une erreur de numéro pourrait effacer le mauvais disque !
+- Repérer la clé USB (ex. `/dev/sdb`).
+- Vérifier la taille et le modèle.
 
-<!-- 📸 Capture d'écran : sortie de diskutil list avec la clé USB identifiée -->
+<!-- CAPTURE D'ÉCRAN : sortie de lsblk avec la clé USB identifiée -->
+
+> **DANGER** : bien identifier le bon disque. Formater le mauvais disque = perte de données irréversible.
 
 ---
 
-## Étape 2 – Formater la clé USB
+## 2.2 Formater la clé USB
 
-### Option A – Via l'Utilitaire de disque (interface graphique)
+### Méthode A – Depuis macOS
 
-1. Ouvrez **Utilitaire de disque** (`Applications > Utilitaires > Utilitaire de disque`)
-2. Dans le menu **Présentation**, sélectionnez **Afficher tous les appareils**
-3. Sélectionnez votre clé USB (le disque entier, pas la partition)
-4. Cliquez sur **Effacer**
-5. Configurez :
-   - **Nom** : `MyVolume`
-   - **Format** : `Mac OS étendu (journalisé)` (HFS+)
-   - **Schéma** : `Table de partition GUID`
-6. Cliquez sur **Effacer**
+1. Identifier le disque (ex. `/dev/disk2`) :
+   ```bash
+   diskutil list
+   ```
 
-<!-- 📸 Capture d'écran : Utilitaire de disque avec les paramètres de formatage -->
+2. Formater en GPT + JHFS+ :
+   ```bash
+   diskutil partitionDisk /dev/diskN GPT JHFS+ "MyVolume" 100%
+   ```
+   - Remplacer `/dev/diskN` par votre disque (ex. `/dev/disk2`).
+   - `MyVolume` = nom temporaire du volume.
 
-### Option B – Via le Terminal
+3. Vérifier le résultat :
+   ```bash
+   diskutil list /dev/diskN
+   ```
+   - Vous devez voir une table de partition **GPT**.
+   - Un volume **MyVolume** en JHFS+.
 
-```bash
-# Remplacez disk2 par le numéro de votre clé USB
-diskutil partitionDisk /dev/disk2 GPT JHFS+ "MyVolume" 100%
-```
+<!-- CAPTURE D'ÉCRAN : résultat du formatage macOS -->
 
-Cette commande :
-- Crée une table de partition GUID (GPT)
-- Formate en HFS+ journalisé
-- Nomme le volume `MyVolume`
-- Utilise 100% de l'espace disponible
+### Méthode B – Depuis Linux Ubuntu 25.10
 
----
+1. Identifier le disque (ex. `/dev/sdb`) :
+   ```bash
+   lsblk
+   ```
 
-## Étape 3 – Créer le support d'installation avec createinstallmedia
+2. Démonter toutes les partitions de la clé :
+   ```bash
+   sudo umount /dev/sdX*
+   ```
 
-1. Ouvrez le Terminal et exécutez la commande suivante :
+3. Créer la table de partition GPT avec `gdisk` :
+   ```bash
+   sudo gdisk /dev/sdX
+   ```
 
-```bash
-sudo "/Applications/Install macOS Sequoia.app/Contents/Resources/createinstallmedia" \
-    --volume /Volumes/MyVolume \
-    --nointeraction
-```
+   Séquence de commandes dans gdisk :
 
-2. Entrez votre mot de passe administrateur quand demandé
+   | Commande | Action | Détails |
+   |----------|--------|---------|
+   | `o` | Nouvelle table GPT | Confirmer avec `Y` |
+   | `n` | Partition 1 (EFI) | First sector : défaut, Last sector : `+200M`, Type : `EF00` |
+   | `n` | Partition 2 (données) | First sector : défaut, Last sector : défaut (tout l'espace), Type : `AF00` |
+   | `w` | Écrire les changements | Confirmer avec `Y` |
 
-3. Le processus va :
-   - Effacer le volume `MyVolume`
-   - Copier les fichiers d'installation
-   - Rendre la clé bootable
+4. Formater la partition EFI en FAT32 :
+   ```bash
+   sudo mkfs.vfat -F 32 -n "EFI" /dev/sdX1
+   ```
 
-> Le processus prend **15 à 30 minutes** selon la vitesse de votre clé USB. Ne débranchez pas la clé pendant l'opération.
+5. Vérifier le résultat :
+   ```bash
+   lsblk -f /dev/sdX
+   ```
+   - Partition 1 : FAT32, label "EFI", ~200 Mo.
+   - Partition 2 : Apple HFS (non formatée pour l'instant, c'est normal).
 
-<!-- 📸 Capture d'écran : Terminal montrant la progression de createinstallmedia -->
-
-4. Une fois terminé, vous verrez le message :
-
-```
-Install media now available at "/Volumes/Install macOS Sequoia"
-```
-
----
-
-## Étape 4 – Vérification
-
-Vérifiez que la clé USB a été correctement préparée :
-
-```bash
-# Vérifiez que le volume d'installation existe
-ls /Volumes/
-```
-
-Vous devriez voir `Install macOS Sequoia` dans la liste.
-
-```bash
-# Vérifiez le contenu du volume
-ls "/Volumes/Install macOS Sequoia/"
-```
-
-Vous devriez voir des fichiers comme `BaseSystem.dmg` ou le dossier `.IAPhysicalMedia`.
+<!-- CAPTURE D'ÉCRAN : résultat de lsblk -f après formatage -->
 
 ---
 
-## Vérification
+## 2.3 Créer le support bootable
 
-Avant de passer au guide suivant, assurez-vous que :
+### Méthode A – Depuis macOS (installeur complet)
 
-- [ ] La clé USB est formatée en GPT + HFS+
-- [ ] Le volume `Install macOS Sequoia` apparaît dans `/Volumes/`
-- [ ] Les fichiers d'installation sont présents sur la clé
+> **Prérequis** : avoir téléchargé l'installeur complet (voir Guide 1, Méthode A).
+
+1. Lancer la commande `createinstallmedia` :
+   ```bash
+   sudo "/Applications/Install macOS Sequoia.app/Contents/Resources/createinstallmedia" \
+     --volume /Volumes/MyVolume \
+     --nointeraction
+   ```
+
+2. Entrer votre mot de passe administrateur.
+
+3. Attendre la fin du processus :
+   - **Erasing disk** : formatage de la clé.
+   - **Copying to disk** : copie des fichiers (~15–30 min).
+   - **Making disk bootable** : finalisation.
+   - **Copy complete** : terminé.
+
+<!-- CAPTURE D'ÉCRAN : sortie de createinstallmedia en cours -->
+
+4. Vérifier :
+   ```bash
+   ls -la "/Volumes/Install macOS Sequoia/"
+   ```
+   - Vous devez voir les fichiers de l'installeur macOS.
+
+### Méthode B – Depuis Linux (Recovery)
+
+> **Prérequis** : avoir téléchargé les fichiers Recovery (voir Guide 1, Méthode B).
+> **Rappel** : cette méthode nécessite une **connexion Ethernet active** pendant l'installation.
+
+1. Créer le point de montage :
+   ```bash
+   sudo mkdir -p /mnt/usb
+   ```
+
+2. Monter la partition EFI :
+   ```bash
+   sudo mount /dev/sdX1 /mnt/usb
+   ```
+
+3. Créer le dossier Recovery et copier les fichiers :
+   ```bash
+   sudo mkdir -p /mnt/usb/com.apple.recovery.boot
+   sudo cp com.apple.recovery.boot/BaseSystem.dmg /mnt/usb/com.apple.recovery.boot/
+   sudo cp com.apple.recovery.boot/BaseSystem.chunklist /mnt/usb/com.apple.recovery.boot/
+   ```
+
+4. Vérifier la copie :
+   ```bash
+   ls -lh /mnt/usb/com.apple.recovery.boot/
+   ```
+   - `BaseSystem.dmg` : ~600–700 Mo.
+   - `BaseSystem.chunklist` : quelques Ko.
+
+5. Démonter la clé :
+   ```bash
+   sudo umount /mnt/usb
+   ```
+
+<!-- CAPTURE D'ÉCRAN : contenu de la partition EFI après copie des fichiers Recovery -->
+
+> **Note** : le dossier EFI (OpenCore) sera ajouté dans le **Guide 6**. La clé n'est pas encore bootable.
+
+---
+
+## 2.4 Résumé des structures
+
+### Méthode A (macOS complet)
+
+```
+/Volumes/Install macOS Sequoia/
+├── .IABootFiles/
+├── Install macOS Sequoia.app/
+├── .disk_label
+└── ...
+```
+
+### Méthode B (Linux Recovery)
+
+```
+/dev/sdX1 (EFI, FAT32, 200 Mo)
+└── com.apple.recovery.boot/
+    ├── BaseSystem.dmg
+    └── BaseSystem.chunklist
+
+/dev/sdX2 (Apple HFS, reste de l'espace)
+└── (vide pour l'instant)
+```
+
+---
+
+## Checklist de vérification
+
+Avant de passer au Guide 3, vérifiez chaque point :
+
+- [ ] Clé USB de **16 Go minimum** (32 Go recommandé)
+- [ ] Clé formatée en **GPT**
+- [ ] **Méthode A** : `createinstallmedia` terminé sans erreur
+- [ ] **Méthode A** : volume "Install macOS Sequoia" visible dans le Finder
+- [ ] **Méthode B** : partition EFI formatée en FAT32
+- [ ] **Méthode B** : `BaseSystem.dmg` et `BaseSystem.chunklist` copiés dans `com.apple.recovery.boot/`
+- [ ] Aucune erreur de copie ou de montage
 
 ---
 
 ## Dépannage
 
-| Problème | Solution |
-|----------|----------|
-| `createinstallmedia: command not found` | Vérifiez le chemin vers l'installateur dans `/Applications/` |
-| `Volume could not be unmounted` | Fermez toutes les applications qui accèdent à la clé USB |
-| Le processus est très lent | Utilisez un port USB 3.0 et une clé USB 3.0 |
-| Erreur de permission | Assurez-vous d'utiliser `sudo` |
-| La clé n'apparaît pas dans diskutil | Essayez un autre port USB ou une autre clé |
+| Problème | Cause probable | Solution |
+|----------|---------------|----------|
+| `diskutil partitionDisk` erreur "Resource busy" | Clé en cours d'utilisation | Fermer toutes les fenêtres Finder, `diskutil unmountDisk /dev/diskN` |
+| `createinstallmedia` erreur "not a valid volume" | Mauvais format de partition | Reformater en JHFS+ avec `diskutil partitionDisk` |
+| `gdisk` non trouvé sous Linux | Package manquant | `sudo apt install gdisk` |
+| `mkfs.vfat` non trouvé sous Linux | Package manquant | `sudo apt install dosfstools` |
+| Permission denied sous Linux | Droits insuffisants | Utiliser `sudo` pour chaque commande |
+| `createinstallmedia` bloqué à 0% | Clé USB lente ou défectueuse | Essayer un autre port USB ou une autre clé |
+| Erreur "No space left on device" | Clé trop petite | Utiliser une clé de 32 Go |
 
 ---
 
 ## Étape suivante
 
-→ [Guide 3 – Téléchargement et préparation d'OpenCore](Guide-03-Preparation-OpenCore.md)
+La clé USB est prête. Direction le **[Guide 3 – Préparation et assemblage du dossier EFI](Guide-03-Preparation-EFI.md)**.
