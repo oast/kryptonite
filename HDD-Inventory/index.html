@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Portail d'inventaire et d'audit pour parc de 30 disques durs — Kryptonite">
+  <title>Kryptonite · Inventaire HDD</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header id="header">
+    <h1 onclick="navHome()">Kryptonite</h1>
+    <span class="subtitle">Inventaire HDD</span>
+    <div id="stats"></div>
+    <div class="header-actions">
+      <button onclick="exportCSV()">⬇ Exporter CSV</button>
+    </div>
+  </header>
+
+  <div id="filters">
+    <input id="search" type="search" placeholder="Rechercher (nom, ID)…" oninput="applyFilters()">
+    <select id="filterType" onchange="applyFilters()">
+      <option value="">Tous les types</option>
+      <option>SSD NVMe</option>
+      <option>SSD SATA</option>
+      <option>HDD 7200rpm</option>
+      <option>HDD 5400rpm</option>
+    </select>
+    <select id="filterSmart" onchange="applyFilters()">
+      <option value="">Tous SMART</option>
+      <option>Sain</option>
+      <option>Prudence</option>
+      <option>Défaillant</option>
+    </select>
+    <select id="filterTest" onchange="applyFilters()">
+      <option value="">Tous tests</option>
+      <option>Passé</option>
+      <option>En cours</option>
+      <option>Échec</option>
+      <option>En attente</option>
+    </select>
+  </div>
+
+  <main id="main"></main>
+
+  <!-- ── Audit entry modal ─────────────────────────────────────────────────── -->
+  <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
+    <div class="modal-content">
+      <h3>Nouvel enregistrement d'audit</h3>
+      <form id="auditForm" onsubmit="submitAudit(event)">
+        <select id="auditType" required>
+          <option value="CONNEXION">CONNEXION — Branchement / détection initiale</option>
+          <option value="SMART">SMART — Vérification état S.M.A.R.T.</option>
+          <option value="TEST">TEST — Test de performance / surface</option>
+          <option value="FORMAT">FORMAT — Formatage / repartitionnement</option>
+          <option value="NOTE">NOTE — Observation libre</option>
+        </select>
+        <select id="auditEtat" required>
+          <optgroup label="États S.M.A.R.T.">
+            <option value="Sain">Sain</option>
+            <option value="Prudence">Prudence</option>
+            <option value="Défaillant">Défaillant</option>
+          </optgroup>
+          <optgroup label="États de test">
+            <option value="Passé">Passé</option>
+            <option value="En cours">En cours</option>
+            <option value="Échec">Échec</option>
+          </optgroup>
+          <optgroup label="Autre">
+            <option value="Info">Info</option>
+          </optgroup>
+        </select>
+        <textarea id="auditNotes"
+          placeholder="Métriques, observations, valeurs SMART, débit I/O, secteurs défectueux, numéro de série…"
+          required></textarea>
+        <div class="form-actions">
+          <button type="button" onclick="closeModal()">Annuler</button>
+          <button type="submit">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
